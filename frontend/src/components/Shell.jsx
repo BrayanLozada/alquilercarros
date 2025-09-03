@@ -64,7 +64,7 @@ function Shell({ user, onLogout }){
           </div>
         </Card>
         <div className="col-span-9 space-y-6">
-          {view==='tablero' && <Tablero/>}
+          {view==='tablero' && <Tablero user={user}/>}
           {view==='alquileres' && <ListaAlquileres/>}
           {view==='reportes' && <Reportes/>}
           {view==='auditoria' && <Auditoria/>}

@@ -74,7 +74,7 @@ function EndForm({ alquiler, onConfirm }){
   );
 }
 
-function Tablero(){
+function Tablero({ user }){
   const [cars, setCars] = useState(seedCars);
   const [alquileres, setAlquileres] = useState([]);
   const [modalStart, setModalStart] = useState({ open:false, carro:null });
@@ -129,14 +129,16 @@ function Tablero(){
           ) : (
             <div className="text-slate-500 text-sm">Sin alquiler activo</div>
           )}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             {carro.estado==='disponible' && (
-              <Button className="bg-indigo-600 text-white flex items-center gap-2" onClick={()=>setModalStart({open:true, carro})}><Play size={16}/> Iniciar</Button>
+              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalStart({open:true, carro})}><Play size={16}/> Iniciar</Button>
             )}
             {activo && (
-              <Button className="bg-rose-600 text-white flex items-center gap-2" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
+              <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
             )}
-            <Button className="bg-slate-100 flex items-center gap-2" onClick={()=>setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:c.estado==='mantenimiento'?'disponible':'mantenimiento'}:c))}><Wrench size={16}/> Mantenimiento</Button>
+            {user?.rol !== 'operador' && (
+              <Button className="bg-slate-100 flex items-center gap-2 text-sm" onClick={()=>setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:c.estado==='mantenimiento'?'disponible':'mantenimiento'}:c))}><Wrench size={16}/> Mantenimiento</Button>
+            )}
           </div>
         </div>
       </Card>
