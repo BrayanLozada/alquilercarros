@@ -10,7 +10,7 @@ import {
   Bell,
   ShieldCheck,
   Gauge,
-  ChartPie,
+  PieChart,
   Users,
   Car,
 } from "lucide-react";
@@ -57,7 +57,7 @@ function Shell({ user, onLogout }){
           <div className="space-y-1">
             <MenuItem icon={Gauge} label="Tablero" active={view==='tablero'} onClick={()=>setView('tablero')}/>
             <MenuItem icon={TimerReset} label="Alquileres" active={view==='alquileres'} onClick={()=>setView('alquileres')}/>
-            <MenuItem icon={ChartPie} label="Reportes" active={view==='reportes'} onClick={()=>setView('reportes')} hidden={isOperador}/>
+            <MenuItem icon={PieChart} label="Reportes" active={view==='reportes'} onClick={()=>setView('reportes')} hidden={isOperador}/>
             <MenuItem icon={ShieldCheck} label="Auditoría" active={view==='auditoria'} onClick={()=>setView('auditoria')} hidden={isOperador}/>
             <MenuItem icon={Settings} label="Configuración" active={view==='config'} onClick={()=>setView('config')} hidden={!isAdmin}/>
             <MenuItem icon={Database} label="Backups" active={view==='backups'} onClick={()=>setView('backups')} hidden={!isAdmin}/>
