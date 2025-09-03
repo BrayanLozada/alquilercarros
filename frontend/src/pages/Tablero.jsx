@@ -15,9 +15,7 @@ function Countdown({ seconds }){
   return <div className={`font-mono text-lg ${seconds===0?"text-rose-600 font-bold animate-pulse":""}`}>{m}:{s}</div>;
 }
 
-function StartForm({ carro, onConfirm }){
-  const [tramo, setTramo] = useState(1);
-  const [inicio, setInicio] = useState(new Date().toISOString().slice(0,16));
+function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
   const minutos = seedTramos.find(t=>t.id===Number(tramo))?.minutos ?? 0;
   return (
     <div className="space-y-4">
@@ -43,9 +41,7 @@ function StartForm({ carro, onConfirm }){
           <Input value={formatoMoneda(tarifaGlobal)} disabled/>
         </div>
       </div>
-      <div className="flex justify-end">
-        <Button className="bg-indigo-600 text-white" onClick={()=>onConfirm(tramo, inicio)}><Play size={16}/> Iniciar</Button>
-      </div>
+      <div className="text-sm text-slate-500">Duración seleccionada: {minutos} min</div>
     </div>
   );
 }
@@ -79,6 +75,8 @@ function Tablero({ user }){
   const [alquileres, setAlquileres] = useState([]);
   const [modalStart, setModalStart] = useState({ open:false, carro:null });
   const [modalEnd, setModalEnd] = useState({ open:false, alquiler:null });
+  const [startTramo, setStartTramo] = useState(1);
+  const [startInicio, setStartInicio] = useState(new Date().toISOString().slice(0,16));
   const [, force] = useState(0);
   useEffect(()=>{
     const t = setInterval(()=>force(x=>x+1), 1000);
@@ -116,8 +114,8 @@ function Tablero({ user }){
           </div>
           <div className="flex items-center gap-2">
             {carro.estado === 'disponible' && <Pill tone="emerald">Disponible</Pill>}
-            {carro.estado === 'en uso' && <Pill tone="amber">En uso</Pill>}
-            {carro.estado === 'mantenimiento' && <Pill tone="red">Mantenimiento</Pill>}
+            {carro.estado === 'en uso' && <Pill tone="red">En uso</Pill>}
+            {carro.estado === 'mantenimiento' && <Pill tone="amber">Mantenimiento</Pill>}
           </div>
         </div>
         <div className="mt-4 flex items-center justify-between">
@@ -131,7 +129,7 @@ function Tablero({ user }){
           )}
           <div className="flex flex-wrap gap-2 justify-end">
             {carro.estado==='disponible' && (
-              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalStart({open:true, carro})}><Play size={16}/> Iniciar</Button>
+              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(1); setStartInicio(new Date().toISOString().slice(0,16)); setModalStart({open:true, carro}); }}><Play size={16}/> Iniciar</Button>
             )}
             {activo && (
               <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
@@ -160,10 +158,10 @@ function Tablero({ user }){
       <Modal open={modalStart.open} onClose={()=>setModalStart({open:false, carro:null})} title={`Iniciar alquiler • ${modalStart.carro?.nombre ?? ""}`} footer={
         <>
           <Button onClick={()=>setModalStart({open:false, carro:null})}>Cancelar</Button>
-          <Button className="bg-indigo-600 text-white" id="confirmStart">Confirmar</Button>
+          <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo, startInicio); setModalStart({open:false, carro:null}); }}>Iniciar</Button>
         </>
       }>
-        <StartForm carro={modalStart.carro} onConfirm={(tramoId, inicio)=>{startAlquiler(modalStart.carro, tramoId, inicio); setModalStart({open:false, carro:null});}}/>
+        <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio}/>
       </Modal>
 
       <Modal open={modalEnd.open} onClose={()=>setModalEnd({open:false, alquiler:null})} title={`Finalizar alquiler`} footer={
