@@ -46,8 +46,7 @@ function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
   );
 }
 
-function EndForm({ alquiler, onConfirm }){
-  const [metodo, setMetodo] = useState("efectivo");
+function EndForm({ alquiler, metodo, setMetodo }){
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -63,9 +62,7 @@ function EndForm({ alquiler, onConfirm }){
           <Input value={formatoMoneda(tarifaGlobal)} disabled/>
         </div>
       </div>
-      <div className="flex justify-end">
-        <Button className="bg-rose-600 text-white" onClick={()=>onConfirm(metodo)}><Square size={16}/> Finalizar</Button>
-      </div>
+      {/* Acción Finalizar se maneja desde el footer del modal */}
     </div>
   );
 }
@@ -75,6 +72,7 @@ function Tablero({ user }){
   const [alquileres, setAlquileres] = useState([]);
   const [modalStart, setModalStart] = useState({ open:false, carro:null });
   const [modalEnd, setModalEnd] = useState({ open:false, alquiler:null });
+  const [endMetodo, setEndMetodo] = useState("efectivo");
   const [startTramo, setStartTramo] = useState(1);
   const [startInicio, setStartInicio] = useState(new Date().toISOString().slice(0,16));
   const [, force] = useState(0);
@@ -167,10 +165,10 @@ function Tablero({ user }){
       <Modal open={modalEnd.open} onClose={()=>setModalEnd({open:false, alquiler:null})} title={`Finalizar alquiler`} footer={
         <>
           <Button onClick={()=>setModalEnd({open:false, alquiler:null})}>Cancelar</Button>
-          <Button className="bg-rose-600 text-white" id="confirmEnd">Finalizar</Button>
+          <Button className="bg-rose-600 text-white" id="confirmEnd" onClick={()=>{ finalizar(modalEnd.alquiler, endMetodo); setModalEnd({open:false, alquiler:null}); }}>Finalizar</Button>
         </>
       }>
-        <EndForm alquiler={modalEnd.alquiler} onConfirm={(metodo)=>{finalizar(modalEnd.alquiler, metodo); setModalEnd({open:false, alquiler:null});}}/>
+        <EndForm alquiler={modalEnd.alquiler} metodo={endMetodo} setMetodo={setEndMetodo}/>
       </Modal>
     </>
   );
