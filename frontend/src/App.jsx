@@ -1,11 +1,11 @@
-function App() {
-  return (
-    <div className="text-center">
-      <h1 className="text-3xl font-bold underline">
-        Hello Vite + React + Tailwind!
-      </h1>
-    </div>
-  )
+import { useState } from "react";
+import Login from "./components/Login";
+import Shell from "./components/Shell";
+
+function App(){
+  const [user, setUser] = useState(null);
+  if(!user) return <Login onLogin={setUser}/>;
+  return <Shell user={user} onLogout={()=>setUser(null)}/>;
 }
 
-export default App
+export default App;
