@@ -7,7 +7,8 @@ import Input from "../components/ui/Input";
 import Select from "../components/ui/Select";
 import Label from "../components/ui/Label";
 import Modal from "../components/ui/Modal";
-import { seedCars, seedTramos, tarifaGlobal, formatoMoneda } from "../lib/data";
+import { formatoMoneda } from "../lib/data";
+import { getCars, getTramos, getTarifaActiva } from "../lib/api";
 
 function Countdown({ seconds }){
   const m = Math.floor(seconds/60).toString().padStart(2,'0');
@@ -15,8 +16,8 @@ function Countdown({ seconds }){
   return <div className={`font-mono text-lg ${seconds===0?"text-rose-600 font-bold animate-pulse":""}`}>{m}:{s}</div>;
 }
 
-function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
-  const minutos = seedTramos.find(t=>t.id===Number(tramo))?.minutos ?? 0;
+function StartForm({ carro, tramo, setTramo, inicio, setInicio, tramos, tarifa }){
+  const minutos = tramos.find(t=>t.id===Number(tramo))?.minutos ?? 0;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -27,7 +28,7 @@ function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
         <div>
           <Label>Tramo</Label>
           <Select value={tramo} onChange={e=>setTramo(e.target.value)}>
-            {seedTramos.filter(t=>t.activo).map(t=> (
+            {tramos.filter(t=>t.activo).map(t=> (
               <option key={t.id} value={t.id}>{t.minutos} min</option>
             ))}
           </Select>
@@ -38,7 +39,7 @@ function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
         </div>
         <div>
           <Label>Costo</Label>
-          <Input value={formatoMoneda(tarifaGlobal)} disabled/>
+          <Input value={formatoMoneda(tarifa)} disabled/>
         </div>
       </div>
       <div className="text-sm text-slate-500">Duración seleccionada: {minutos} min</div>
@@ -46,7 +47,7 @@ function StartForm({ carro, tramo, setTramo, inicio, setInicio }){
   );
 }
 
-function EndForm({ alquiler, metodo, setMetodo }){
+function EndForm({ alquiler, metodo, setMetodo, tarifa }){
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -59,7 +60,7 @@ function EndForm({ alquiler, metodo, setMetodo }){
         </div>
         <div>
           <Label>Total</Label>
-          <Input value={formatoMoneda(tarifaGlobal)} disabled/>
+          <Input value={formatoMoneda(tarifa)} disabled/>
         </div>
       </div>
       {/* Acción Finalizar se maneja desde el footer del modal */}
@@ -68,26 +69,33 @@ function EndForm({ alquiler, metodo, setMetodo }){
 }
 
 function Tablero({ user }){
-  const [cars, setCars] = useState(seedCars);
+  const [cars, setCars] = useState([]);
+  const [tramos, setTramos] = useState([]);
+  const [tarifa, setTarifa] = useState(0);
   const [alquileres, setAlquileres] = useState([]);
   const [modalStart, setModalStart] = useState({ open:false, carro:null });
   const [modalEnd, setModalEnd] = useState({ open:false, alquiler:null });
   const [endMetodo, setEndMetodo] = useState("efectivo");
-  const [startTramo, setStartTramo] = useState(1);
+  const [startTramo, setStartTramo] = useState(null);
   const [startInicio, setStartInicio] = useState(new Date().toISOString().slice(0,16));
   const [, force] = useState(0);
   useEffect(()=>{
     const t = setInterval(()=>force(x=>x+1), 1000);
     return ()=>clearInterval(t);
   },[]);
+  useEffect(()=>{
+    getCars().then(setCars);
+    getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); });
+    getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
+  },[]);
 
   const activos = useMemo(()=>alquileres.filter(a=>a.estado==='activo'), [alquileres]);
 
   const startAlquiler = (carro, tramoId, inicioManual) => {
-    const tramo = seedTramos.find(t=>t.id===Number(tramoId));
+    const tramo = tramos.find(t=>t.id===Number(tramoId));
     const now = inicioManual ? new Date(inicioManual) : new Date();
     const fin = new Date(now.getTime() + tramo.minutos*60000);
-    const nuevo = { id: crypto.randomUUID(), carroId: carro.id, tramoId: tramo.id, inicio: now, fin, costo: tarifaGlobal, estado:'activo' };
+    const nuevo = { id: crypto.randomUUID(), carroId: carro.id, tramoId: tramo.id, inicio: now, fin, costo: tarifa, estado:'activo' };
     setAlquileres(prev=>[...prev, nuevo]);
     setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:'en uso'}:c));
   };
@@ -127,7 +135,7 @@ function Tablero({ user }){
           )}
           <div className="flex flex-wrap gap-2 justify-end">
             {carro.estado==='disponible' && (
-              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(1); setStartInicio(new Date().toISOString().slice(0,16)); setModalStart({open:true, carro}); }}><Play size={16}/> Iniciar</Button>
+              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(tramos[0]?.id ?? null); setStartInicio(new Date().toISOString().slice(0,16)); setModalStart({open:true, carro}); }}><Play size={16}/> Iniciar</Button>
             )}
             {activo && (
               <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
@@ -159,7 +167,7 @@ function Tablero({ user }){
           <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo, startInicio); setModalStart({open:false, carro:null}); }}>Iniciar</Button>
         </>
       }>
-        <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio}/>
+        <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio} tramos={tramos} tarifa={tarifa}/>
       </Modal>
 
       <Modal open={modalEnd.open} onClose={()=>setModalEnd({open:false, alquiler:null})} title={`Finalizar alquiler`} footer={
@@ -168,7 +176,7 @@ function Tablero({ user }){
           <Button className="bg-rose-600 text-white" id="confirmEnd" onClick={()=>{ finalizar(modalEnd.alquiler, endMetodo); setModalEnd({open:false, alquiler:null}); }}>Finalizar</Button>
         </>
       }>
-        <EndForm alquiler={modalEnd.alquiler} metodo={endMetodo} setMetodo={setEndMetodo}/>
+        <EndForm alquiler={modalEnd.alquiler} metodo={endMetodo} setMetodo={setEndMetodo} tarifa={tarifa}/>
       </Modal>
     </>
   );

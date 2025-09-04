@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Gauge, LogIn } from "lucide-react";
-import { seedUsuarios } from "../lib/data";
+import { login } from "../lib/api";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
 import Input from "./ui/Input";
@@ -30,10 +30,13 @@ function Login({ onLogin }) {
             <Label>Contraseña</Label>
             <Input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••"/>
           </div>
-          <Button className="w-full bg-indigo-600 text-white flex items-center justify-center gap-2" onClick={()=>{
-            const user = seedUsuarios.find(u=>u.usuario===usuario);
-            if(!user){ setError("Usuario no encontrado (demo)"); return; }
-            onLogin(user);
+          <Button className="w-full bg-indigo-600 text-white flex items-center justify-center gap-2" onClick={async()=>{
+            try {
+              const user = await login(usuario, password);
+              onLogin(user);
+            } catch (e) {
+              setError(e.message);
+            }
           }}>
             <LogIn size={18}/> Entrar
           </Button>
