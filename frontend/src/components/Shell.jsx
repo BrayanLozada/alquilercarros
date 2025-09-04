@@ -13,6 +13,7 @@ import {
   PieChart,
   Users,
   Car,
+  KeyRound,
 } from "lucide-react";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
@@ -23,6 +24,7 @@ import Reportes from "../pages/Reportes";
 import Auditoria from "../pages/Auditoria";
 import Configuracion from "../pages/Configuracion";
 import Backups from "../pages/Backups";
+import Perfil from "../pages/Perfil";
 
 const MenuItem = ({ icon:Icon, label, active, onClick, hidden }) => hidden ? null : (
   <button onClick={onClick} className={`flex items-center gap-3 w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 ${active?"bg-indigo-100 text-indigo-700":"text-slate-700"}`}>
@@ -34,6 +36,7 @@ function Shell({ user, onLogout }){
   const [view, setView] = useState('tablero');
   const isOperador = user?.rol === "operador";
   const isAdmin = user?.rol === "admin";
+  const canChangePwd = user?.rol === 'operador' || user?.rol === 'supervisor';
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="sticky top-0 z-40 bg-white border-b border-slate-200">
@@ -61,6 +64,7 @@ function Shell({ user, onLogout }){
             <MenuItem icon={ShieldCheck} label="Auditoría" active={view==='auditoria'} onClick={()=>setView('auditoria')} hidden={isOperador}/>
             <MenuItem icon={Settings} label="Configuración" active={view==='config'} onClick={()=>setView('config')} hidden={!isAdmin}/>
             <MenuItem icon={Database} label="Backups" active={view==='backups'} onClick={()=>setView('backups')} hidden={!isAdmin}/>
+            <MenuItem icon={KeyRound} label="Perfil" active={view==='perfil'} onClick={()=>setView('perfil')} hidden={!canChangePwd}/>
           </div>
         </Card>
         <div className="col-span-9 space-y-6">
@@ -70,6 +74,7 @@ function Shell({ user, onLogout }){
           {view==='auditoria' && <Auditoria/>}
           {view==='config' && <Configuracion/>}
           {view==='backups' && <Backups/>}
+          {view==='perfil' && <Perfil user={user}/>}
         </div>
       </div>
     </div>
