@@ -37,6 +37,31 @@ function getAsync(sql, params = []) {
   })
 }
 
+// Ruta de autenticación simple
+app.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {}
+    if (!username || !password) {
+      return res.status(400).json({ error: 'credenciales inválidas' })
+    }
+    const row = await getAsync(
+      `SELECT u.id, u.username, u.password, r.nombre as rol
+       FROM usuarios u JOIN roles r ON r.id = u.role_id
+       WHERE u.username = ? AND u.activo = 1`,
+      [username]
+    )
+    if (!row) return res.status(401).json({ error: 'credenciales inválidas' })
+    const { default: bcrypt } = await import('bcryptjs')
+    const ok = bcrypt.compareSync(password, row.password)
+    if (!ok) return res.status(401).json({ error: 'credenciales inválidas' })
+    const { password: _pwd, ...user } = row
+    user.rol = user.rol.toLowerCase()
+    res.json(user)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // Rutas: Roles
 app.get('/roles', async (_req, res) => {
   try {

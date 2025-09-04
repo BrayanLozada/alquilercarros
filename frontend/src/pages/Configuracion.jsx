@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Label from "../components/ui/Label";
 import Pill from "../components/ui/Pill";
-import { seedTramos, seedCars, seedUsuarios, tarifaGlobal } from "../lib/data";
+import { getTramos, getCars, getUsuarios, getTarifaActiva } from "../lib/api";
 
 const Section = ({ title, children, actions }) => (
   <Card className="p-4">
@@ -17,20 +18,31 @@ const Section = ({ title, children, actions }) => (
 );
 
 function Configuracion(){
+  const [tramos, setTramos] = useState([]);
+  const [cars, setCars] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [tarifa, setTarifa] = useState(0);
+
+  useEffect(()=>{
+    getTramos().then(setTramos);
+    getCars().then(setCars);
+    getUsuarios().then(setUsuarios);
+    getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
+  },[]);
+
   return (
     <div className="space-y-4">
       <Section title="Tramos de tiempo" actions={<Button className="bg-slate-100 flex items-center gap-2"><Plus size={16}/> Nuevo</Button>}>
         <div className="overflow-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500"><th className="py-2">Minutos</th><th>Activo</th><th>Orden</th><th></th></tr>
+              <tr className="text-left text-slate-500"><th className="py-2">Minutos</th><th>Activo</th><th></th></tr>
             </thead>
             <tbody>
-              {seedTramos.map(t=> (
+              {tramos.map(t=> (
                 <tr key={t.id} className="border-t">
                   <td className="py-2">{t.minutos}</td>
                   <td>{t.activo? 'Sí' : 'No'}</td>
-                  <td>{t.orden}</td>
                   <td className="text-right">
                     <Button className="bg-slate-100 mr-2"><Edit size={14}/></Button>
                     <Button className="bg-rose-50 text-rose-700"><Trash2 size={14}/></Button>
@@ -46,7 +58,7 @@ function Configuracion(){
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <Label>Monto vigente</Label>
-            <Input defaultValue={tarifaGlobal}/>
+            <Input defaultValue={tarifa}/>
           </div>
           <div>
             <Label>Vigente desde</Label>
@@ -65,7 +77,7 @@ function Configuracion(){
               <tr className="text-left text-slate-500"><th className="py-2">Nombre</th><th>Modelo</th><th>Color</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
-              {seedCars.map(c=> (
+              {cars.map(c=> (
                 <tr key={c.id} className="border-t">
                   <td className="py-2">{c.nombre}</td>
                   <td>{c.modelo}</td>
@@ -83,14 +95,13 @@ function Configuracion(){
         <div className="overflow-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500"><th className="py-2">Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr>
+              <tr className="text-left text-slate-500"><th className="py-2">Usuario</th><th>Rol</th><th></th></tr>
             </thead>
             <tbody>
-              {seedUsuarios.map(u=> (
+              {usuarios.map(u=> (
                 <tr key={u.id} className="border-t">
-                  <td className="py-2">{u.nombre}</td>
-                  <td>{u.usuario}</td>
-                  <td><Pill tone={u.rol==='admin'? 'indigo' : u.rol==='supervisor'? 'amber' : 'emerald'}>{u.rol}</Pill></td>
+                  <td className="py-2">{u.username}</td>
+                  <td><Pill tone={u.role==='Admin'? 'indigo' : u.role==='Supervisor'? 'amber' : 'emerald'}>{u.role}</Pill></td>
                   <td className="text-right"><Button className="bg-slate-100 mr-2"><Edit size={14}/></Button><Button className="bg-rose-50 text-rose-700"><Trash2 size={14}/></Button></td>
                 </tr>
               ))}
