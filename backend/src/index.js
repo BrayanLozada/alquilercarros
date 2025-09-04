@@ -50,10 +50,10 @@ app.post('/login', async (req, res) => {
        WHERE u.username = ? AND u.activo = 1`,
       [username]
     )
-    if (!row) return res.status(401).json({ error: 'credenciales inválidas' })
+    if (!row) return res.status(401).json({ error: 'usuario inválido' })
     const { default: bcrypt } = await import('bcryptjs')
     const ok = bcrypt.compareSync(password, row.password)
-    if (!ok) return res.status(401).json({ error: 'credenciales inválidas' })
+    if (!ok) return res.status(401).json({ error: 'contraseña inválida' })
     const { password: _pwd, ...user } = row
     user.rol = user.rol.toLowerCase()
     res.json(user)
@@ -257,6 +257,38 @@ app.post('/usuarios', async (req, res) => {
     const r = await runAsync('INSERT INTO usuarios (username, password, role_id, activo) VALUES (?, ?, ?, ?)', [username.trim(), hash, role.id, activo ? 1 : 0])
     const row = await getAsync('SELECT id, username, role_id, activo FROM usuarios WHERE id = ?', [r.lastID])
     res.status(201).json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.patch('/usuarios/:id/password', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { oldPassword, newPassword } = req.body || {}
+    if (!oldPassword || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'password inválido' })
+    }
+    const user = await getAsync('SELECT password FROM usuarios WHERE id = ? AND activo = 1', [id])
+    if (!user) return res.status(404).json({ error: 'No encontrado' })
+    const { default: bcrypt } = await import('bcryptjs')
+    const ok = bcrypt.compareSync(oldPassword, user.password)
+    if (!ok) return res.status(401).json({ error: 'contraseña actual incorrecta' })
+    const hash = bcrypt.hashSync(newPassword, 10)
+    await runAsync('UPDATE usuarios SET password = ? WHERE id = ?', [hash, id])
+    res.json({ success: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.delete('/usuarios/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const exists = await getAsync('SELECT id FROM usuarios WHERE id = ?', [id])
+    if (!exists) return res.status(404).json({ error: 'No encontrado' })
+    await runAsync('DELETE FROM usuarios WHERE id = ?', [id])
+    res.json({ success: true })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }

@@ -7,7 +7,7 @@ import Input from "./ui/Input";
 import Label from "./ui/Label";
 
 function Login({ onLogin }) {
-  const [usuario, setUsuario] = useState("ana");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   return (
@@ -32,6 +32,7 @@ function Login({ onLogin }) {
           </div>
           <Button className="w-full bg-indigo-600 text-white flex items-center justify-center gap-2" onClick={async()=>{
             try {
+              setError("");
               const user = await login(usuario, password);
               onLogin(user);
             } catch (e) {

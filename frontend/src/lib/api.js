@@ -19,3 +19,12 @@ export const getCars = () => apiFetch('/carros');
 export const getTramos = () => apiFetch('/tramos');
 export const getTarifaActiva = () => apiFetch('/tarifa/activa');
 export const getUsuarios = () => apiFetch('/usuarios');
+export const getRoles = () => apiFetch('/roles');
+export const createUser = (data) => apiFetch('/usuarios', { method: 'POST', body: JSON.stringify(data) });
+export const updateUser = (id, data) => apiFetch(`/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteUser = (id) => apiFetch(`/usuarios/${id}`, { method: 'DELETE' });
+export const changePassword = (id, oldPassword, newPassword) =>
+  apiFetch(`/usuarios/${id}/password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ oldPassword, newPassword })
+  });
