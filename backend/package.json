@@ -6,11 +6,13 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "echo 'No tests' && exit 0"
+    "test": "node test/seed.test.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
