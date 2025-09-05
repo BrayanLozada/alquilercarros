@@ -111,7 +111,22 @@ function Tablero({ user }){
   },[]);
 
   useEffect(()=>{
-    getCars().then(setCars);
+    getCars().then(cs => {
+      // Normalizar estados para compatibilidad con valores antiguos del backend
+      const mapped = cs.map(c => {
+        switch(c.estado){
+          case 'activo':
+            return { ...c, estado: 'disponible' };
+          case 'inactivo':
+            return { ...c, estado: 'mantenimiento' };
+          case 'en uso':
+            return { ...c, estado: 'en_uso' };
+          default:
+            return c;
+        }
+      });
+      setCars(mapped);
+    });
     getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); });
     getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
   },[]);
