@@ -28,3 +28,12 @@ export const changePassword = (id, oldPassword, newPassword) =>
     method: 'PATCH',
     body: JSON.stringify({ oldPassword, newPassword })
   });
+
+// Tramos
+export const createTramo = (data) => apiFetch('/tramos', { method: 'POST', body: JSON.stringify(data) });
+export const updateTramo = (id, data) => apiFetch(`/tramos/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteTramo = (id) => apiFetch(`/tramos/${id}`, { method: 'DELETE' });
+
+// Carros
+export const createCar = (data) => apiFetch('/carros', { method: 'POST', body: JSON.stringify(data) });
+export const updateCar = (id, data) => apiFetch(`/carros/${id}`, { method: 'PATCH', body: JSON.stringify(data) });

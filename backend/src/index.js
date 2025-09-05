@@ -116,6 +116,31 @@ app.post('/tramos', async (req, res) => {
   }
 })
 
+app.patch('/tramos/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { minutos, activo } = req.body || {}
+    const existing = await getAsync('SELECT id FROM tramos WHERE id = ?', [id])
+    if (!existing) return res.status(404).json({ error: 'No encontrado' })
+    const updates = []
+    const params = []
+    if (minutos !== undefined) {
+      if (!Number.isInteger(minutos) || minutos <= 0) return res.status(400).json({ error: 'minutos inválido' })
+      updates.push('minutos = ?'); params.push(minutos)
+    }
+    if (activo !== undefined) {
+      updates.push('activo = ?'); params.push(activo ? 1 : 0)
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' })
+    params.push(id)
+    await runAsync(`UPDATE tramos SET ${updates.join(', ')} WHERE id = ?`, params)
+    const row = await getAsync('SELECT id, minutos, activo FROM tramos WHERE id = ?', [id])
+    res.json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 app.post('/tramos/:id/desactivar', async (req, res) => {
   try {
     const { id } = req.params
