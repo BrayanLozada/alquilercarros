@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Gauge, LogIn } from "lucide-react";
 import { login } from "../lib/api";
+import { getErrorMessage } from "../lib/alerts";
 import Button from "./ui/Button";
 import Card from "./ui/Card";
 import Input from "./ui/Input";
@@ -36,7 +37,7 @@ function Login({ onLogin }) {
               const user = await login(usuario, password);
               onLogin(user);
             } catch (e) {
-              setError(e.message);
+              setError(getErrorMessage(e.message));
             }
           }}>
             <LogIn size={18}/> Entrar
