@@ -84,7 +84,15 @@ function Tablero({ user }){
     return ()=>clearInterval(t);
   },[]);
   useEffect(()=>{
-    getCars().then(setCars);
+    getCars().then(cs=>{
+      const mapped = cs.map(c=>({
+        ...c,
+        estado: c.estado === 'activo' ? 'disponible'
+              : c.estado === 'inactivo' ? 'mantenimiento'
+              : c.estado
+      }));
+      setCars(mapped);
+    });
     getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); });
     getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
   },[]);
