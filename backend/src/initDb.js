@@ -1,6 +1,15 @@
 import db from './db.js'
 import bcrypt from 'bcryptjs'
 
+function allAsync(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) return reject(err)
+      resolve(rows)
+    })
+  })
+}
+
 function runAsync(sql, params = []) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
@@ -41,8 +50,15 @@ async function createTables() {
     nombre TEXT NOT NULL,
     color TEXT,
     modelo TEXT,
-    estado TEXT NOT NULL DEFAULT 'activo'
+    estado TEXT NOT NULL DEFAULT 'disponible',
+    motivo_mant TEXT
   );`)
+
+  // Asegurar columna motivo_mant exista (para bases antiguas)
+  const cols = await allAsync('PRAGMA table_info(carros)')
+  if (!cols.some(c => c.name === 'motivo_mant')) {
+    await runAsync('ALTER TABLE carros ADD COLUMN motivo_mant TEXT')
+  }
 
   await runAsync(`CREATE TABLE IF NOT EXISTS tramos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +71,21 @@ async function createTables() {
     monto REAL NOT NULL,
     fecha_desde TEXT NOT NULL,
     activa INTEGER NOT NULL DEFAULT 1
+  );`)
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS alquileres (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    carro_id INTEGER NOT NULL,
+    tramo_id INTEGER NOT NULL,
+    operador_id INTEGER NOT NULL,
+    inicio TEXT NOT NULL,
+    fin TEXT,
+    costo REAL NOT NULL,
+    metodo_pago TEXT,
+    estado TEXT NOT NULL DEFAULT 'activo',
+    FOREIGN KEY (carro_id) REFERENCES carros(id),
+    FOREIGN KEY (tramo_id) REFERENCES tramos(id),
+    FOREIGN KEY (operador_id) REFERENCES usuarios(id)
   );`)
 }
 
@@ -120,9 +151,9 @@ async function seedData() {
   const carCount = await getAsync('SELECT COUNT(*) as c FROM carros')
   if ((carCount?.c ?? 0) === 0) {
     await runAsync('INSERT INTO carros (nombre, color, modelo, estado) VALUES (?,?,?,?), (?,?,?,?), (?,?,?,?)', [
-      'RC-Alpha', 'Rojo', 'X1', 'activo',
-      'RC-Bravo', 'Azul', 'X2', 'activo',
-      'RC-Charlie', 'Verde', 'X3', 'activo',
+      'RC-Alpha', 'Rojo', 'X1', 'disponible',
+      'RC-Bravo', 'Azul', 'X2', 'disponible',
+      'RC-Charlie', 'Verde', 'X3', 'disponible',
     ])
   }
 }
