@@ -180,7 +180,7 @@ app.delete('/tramos/:id', async (req, res) => {
 // Rutas: Carros (catálogo)
 app.get('/carros', async (_req, res) => {
   try {
-    const rows = await allAsync('SELECT id, nombre, color, modelo, estado FROM carros ORDER BY id ASC')
+    const rows = await allAsync('SELECT id, nombre, color, modelo, estado, motivo_mant FROM carros ORDER BY id ASC')
     res.json(rows)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -189,12 +189,12 @@ app.get('/carros', async (_req, res) => {
 
 app.post('/carros', async (req, res) => {
   try {
-    const { nombre, color = null, modelo = null, estado = 'activo' } = req.body || {}
+    const { nombre, color = null, modelo = null, estado = 'disponible', motivo_mant = null } = req.body || {}
     if (!nombre) return res.status(400).json({ error: 'nombre requerido' })
-    const allowedEstados = ['activo', 'inactivo', 'mantenimiento']
+    const allowedEstados = ['disponible', 'en_uso', 'mantenimiento']
     if (estado && !allowedEstados.includes(estado)) return res.status(400).json({ error: 'estado inválido' })
-    const r = await runAsync('INSERT INTO carros (nombre, color, modelo, estado) VALUES (?,?,?,?)', [nombre, color, modelo, estado])
-    const row = await getAsync('SELECT id, nombre, color, modelo, estado FROM carros WHERE id = ?', [r.lastID])
+    const r = await runAsync('INSERT INTO carros (nombre, color, modelo, estado, motivo_mant) VALUES (?,?,?,?,?)', [nombre, color, modelo, estado, motivo_mant])
+    const row = await getAsync('SELECT id, nombre, color, modelo, estado, motivo_mant FROM carros WHERE id = ?', [r.lastID])
     res.status(201).json(row)
   } catch (e) {
     res.status(500).json({ error: e.message })
@@ -204,7 +204,7 @@ app.post('/carros', async (req, res) => {
 app.patch('/carros/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { nombre, color, modelo, estado } = req.body || {}
+    const { nombre, color, modelo, estado, motivo_mant } = req.body || {}
     const existing = await getAsync('SELECT id FROM carros WHERE id = ?', [id])
     if (!existing) return res.status(404).json({ error: 'No encontrado' })
     // Construir SET dinámico
@@ -214,14 +214,63 @@ app.patch('/carros/:id', async (req, res) => {
     if (color !== undefined) { updates.push('color = ?'); params.push(color) }
     if (modelo !== undefined) { updates.push('modelo = ?'); params.push(modelo) }
     if (estado !== undefined) {
-      const allowedEstados = ['activo', 'inactivo', 'mantenimiento']
+      const allowedEstados = ['disponible', 'en_uso', 'mantenimiento']
       if (!allowedEstados.includes(estado)) return res.status(400).json({ error: 'estado inválido' })
       updates.push('estado = ?'); params.push(estado)
+      if (estado !== 'mantenimiento') {
+        updates.push('motivo_mant = NULL')
+      }
     }
+    if (motivo_mant !== undefined) { updates.push('motivo_mant = ?'); params.push(motivo_mant) }
     if (updates.length === 0) return res.status(400).json({ error: 'Nada que actualizar' })
     params.push(id)
     await runAsync(`UPDATE carros SET ${updates.join(', ')} WHERE id = ?`, params)
-    const row = await getAsync('SELECT id, nombre, color, modelo, estado FROM carros WHERE id = ?', [id])
+    const row = await getAsync('SELECT id, nombre, color, modelo, estado, motivo_mant FROM carros WHERE id = ?', [id])
+    res.json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// Rutas: Alquileres
+app.post('/alquileres', async (req, res) => {
+  try {
+    const { carro_id, tramo_id, operador_id, inicio: inicioManual } = req.body || {}
+    if (!carro_id || !tramo_id || !operador_id) {
+      return res.status(400).json({ error: 'datos inválidos' })
+    }
+    const car = await getAsync('SELECT id, estado FROM carros WHERE id = ?', [carro_id])
+    if (!car || car.estado !== 'disponible') {
+      return res.status(400).json({ error: 'carro no disponible' })
+    }
+    const tramo = await getAsync('SELECT id, minutos FROM tramos WHERE id = ? AND activo = 1', [tramo_id])
+    if (!tramo) return res.status(400).json({ error: 'tramo inválido' })
+    const tarifa = await getAsync('SELECT monto FROM tarifas WHERE activa = 1 ORDER BY date(fecha_desde) DESC LIMIT 1')
+    const costo = tarifa?.monto ?? 0
+    const inicio = inicioManual ? new Date(inicioManual).toISOString() : new Date().toISOString()
+    const r = await runAsync('INSERT INTO alquileres (carro_id, tramo_id, operador_id, inicio, costo, estado) VALUES (?,?,?,?,?,"activo")', [carro_id, tramo_id, operador_id, inicio, costo])
+    await runAsync('UPDATE carros SET estado = ? WHERE id = ?', ['en_uso', carro_id])
+    const row = await getAsync('SELECT * FROM alquileres WHERE id = ?', [r.lastID])
+    res.status(201).json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/alquileres/:id/finalizar', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { metodo_pago = 'efectivo', destino = 'disponible', motivo_mant = null } = req.body || {}
+    const alq = await getAsync('SELECT carro_id FROM alquileres WHERE id = ? AND estado = "activo"', [id])
+    if (!alq) return res.status(404).json({ error: 'No encontrado' })
+    const fin = new Date().toISOString()
+    await runAsync('UPDATE alquileres SET fin = ?, metodo_pago = ?, estado = "cerrado" WHERE id = ?', [fin, metodo_pago, id])
+    if (destino === 'mantenimiento') {
+      await runAsync('UPDATE carros SET estado = ?, motivo_mant = ? WHERE id = ?', ['mantenimiento', motivo_mant, alq.carro_id])
+    } else {
+      await runAsync('UPDATE carros SET estado = ?, motivo_mant = NULL WHERE id = ?', ['disponible', alq.carro_id])
+    }
+    const row = await getAsync('SELECT * FROM alquileres WHERE id = ?', [id])
     res.json(row)
   } catch (e) {
     res.status(500).json({ error: e.message })

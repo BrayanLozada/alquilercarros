@@ -37,3 +37,7 @@ export const deleteTramo = (id) => apiFetch(`/tramos/${id}`, { method: 'DELETE' 
 // Carros
 export const createCar = (data) => apiFetch('/carros', { method: 'POST', body: JSON.stringify(data) });
 export const updateCar = (id, data) => apiFetch(`/carros/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+
+// Alquileres
+export const startRental = (data) => apiFetch('/alquileres', { method: 'POST', body: JSON.stringify(data) });
+export const endRental = (id, data) => apiFetch(`/alquileres/${id}/finalizar`, { method: 'POST', body: JSON.stringify(data) });
