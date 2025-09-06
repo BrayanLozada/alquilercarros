@@ -167,7 +167,10 @@ function Tablero({ user }){
           )}
           <div className="flex flex-wrap gap-2 justify-end">
             {carro.estado==='disponible' && (
+
               <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(tramos[0]?.id ?? null); setStartInicio(getLocalIso()); getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0)); setModalStart({open:true, carro}); }}><Play size={16}/> Iniciar alquiler</Button>
+
+
             )}
             {activo && (
               <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
@@ -209,7 +212,9 @@ function Tablero({ user }){
       <Modal open={modalStart.open} onClose={()=>setModalStart({open:false, carro:null})} title={`Iniciar alquiler • ${modalStart.carro?.nombre ?? ""}`} footer={
         <>
           <Button onClick={()=>setModalStart({open:false, carro:null})}>Cancelar</Button>
+
           <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo); setModalStart({open:false, carro:null}); }}>Iniciar</Button>
+
         </>
       }>
         <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio} tramos={tramos} tarifa={tarifa}/>
