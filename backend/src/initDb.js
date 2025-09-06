@@ -87,6 +87,15 @@ async function createTables() {
     FOREIGN KEY (tramo_id) REFERENCES tramos(id),
     FOREIGN KEY (operador_id) REFERENCES usuarios(id)
   );`)
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS cierres_turno (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operador_id INTEGER NOT NULL,
+    fecha TEXT NOT NULL,
+    total_alquileres INTEGER NOT NULL DEFAULT 0,
+    total_monto REAL NOT NULL DEFAULT 0,
+    FOREIGN KEY (operador_id) REFERENCES usuarios(id)
+  );`)
 }
 
 async function seedData() {
