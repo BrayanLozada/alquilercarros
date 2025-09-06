@@ -7,7 +7,7 @@ import Label from "../components/ui/Label";
 import Pill from "../components/ui/Pill";
 import Select from "../components/ui/Select";
 import Modal from "../components/ui/Modal";
-import { getTramos, getCars, getUsuarios, getTarifaActiva, getRoles, createUser, updateUser, deleteUser, createTramo, updateTramo, deleteTramo, createCar, updateCar } from "../lib/api";
+import { getTramos, getCars, getUsuarios, getTarifaActiva, setTarifa, getRoles, createUser, updateUser, deleteUser, createTramo, updateTramo, deleteTramo, createCar, updateCar } from "../lib/api";
 import { getErrorMessage, showError } from "../lib/alerts";
 
 const Section = ({ title, children, actions }) => (
@@ -24,7 +24,8 @@ function Configuracion(){
   const [tramos, setTramos] = useState([]);
   const [cars, setCars] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
-  const [tarifa, setTarifa] = useState(0);
+  const [tarifaMonto, setTarifaMonto] = useState(0);
+  const [tarifaFecha, setTarifaFecha] = useState(new Date().toISOString().slice(0,10));
   const [roles, setRoles] = useState([]);
 
   const [showUserModal, setShowUserModal] = useState(false);
@@ -44,14 +45,14 @@ function Configuracion(){
   const [nombre, setNombre] = useState('');
   const [modelo, setModelo] = useState('');
   const [color, setColor] = useState('');
-  const [estado, setEstado] = useState('activo');
+  const [estado, setEstado] = useState('disponible');
   const [carError, setCarError] = useState('');
 
   useEffect(()=>{
     getTramos().then(setTramos);
     getCars().then(setCars);
     getUsuarios().then(setUsuarios);
-    getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
+    getTarifaActiva().then(t=>{ setTarifaMonto(t?.monto ?? 0); setTarifaFecha(t?.fecha_desde ?? new Date().toISOString().slice(0,10)); });
     getRoles().then(r=>{ setRoles(r); setRoleId(r[0]?.id || ''); });
   },[]);
 
@@ -145,7 +146,7 @@ function Configuracion(){
     setNombre('');
     setModelo('');
     setColor('');
-    setEstado('activo');
+    setEstado('disponible');
     setCarError('');
     setShowCarModal(true);
   };
@@ -154,7 +155,7 @@ function Configuracion(){
     setNombre(c.nombre);
     setModelo(c.modelo || '');
     setColor(c.color || '');
-    setEstado(c.estado || 'activo');
+    setEstado(c.estado === 'mantenimiento' ? 'mantenimiento' : 'disponible');
     setCarError('');
     setShowCarModal(true);
   };
@@ -171,6 +172,12 @@ function Configuracion(){
       }
       setShowCarModal(false);
     } catch(e){ setCarError(getErrorMessage(e.message)); }
+  };
+
+  const saveTarifa = async () => {
+    try {
+      await setTarifa({ monto: tarifaMonto, fecha_desde: tarifaFecha });
+    } catch(e){ showError(e); }
   };
 
   return (
@@ -201,14 +208,14 @@ function Configuracion(){
         <div className="grid md:grid-cols-3 gap-3">
           <div>
             <Label>Monto vigente</Label>
-            <Input defaultValue={tarifa}/>
+            <Input type="number" value={tarifaMonto} onChange={e=>setTarifaMonto(e.target.value)} />
           </div>
           <div>
             <Label>Vigente desde</Label>
-            <Input type="date" defaultValue={new Date().toISOString().slice(0,10)}/>
+            <Input type="date" value={tarifaFecha} onChange={e=>setTarifaFecha(e.target.value)} />
           </div>
           <div className="flex items-end">
-            <Button className="bg-indigo-600 text-white">Guardar</Button>
+            <Button className="bg-indigo-600 text-white" onClick={saveTarifa}>Guardar</Button>
           </div>
         </div>
       </Section>
@@ -319,8 +326,7 @@ function Configuracion(){
           <div className="space-y-2">
             <Label>Estado</Label>
             <Select value={estado} onChange={e=>setEstado(e.target.value)}>
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
+              <option value="disponible">Disponible</option>
               <option value="mantenimiento">Mantenimiento</option>
             </Select>
           </div>
