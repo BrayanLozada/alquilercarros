@@ -37,6 +37,28 @@ function getAsync(sql, params = []) {
   })
 }
 
+// Helpers de exportación
+function toCSV(rows = []) {
+  if (!rows.length) return ''
+  const headers = Object.keys(rows[0])
+  const escape = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
+  const csv = [headers.join(',')]
+  for (const row of rows) {
+    csv.push(headers.map(h => escape(row[h])).join(','))
+  }
+  return csv.join('\n')
+}
+
+function maybeExport(res, rows, filename, format) {
+  if (format !== 'csv' && format !== 'xlsx') return false
+  const csv = toCSV(rows)
+  const ext = format === 'xlsx' ? 'xlsx' : 'csv'
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.${ext}"`)
+  res.setHeader('Content-Type', format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.send(csv)
+  return true
+}
+
 // Ruta de autenticación simple
 app.post('/login', async (req, res) => {
   try {
@@ -272,6 +294,114 @@ app.post('/alquileres/:id/finalizar', async (req, res) => {
     }
     const row = await getAsync('SELECT * FROM alquileres WHERE id = ?', [id])
     res.json(row)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// Rutas: Reportes
+app.get('/reportes/alquileres-dia', async (req, res) => {
+  try {
+    const fecha = req.query.fecha || new Date().toISOString().slice(0, 10)
+    const rows = await allAsync('SELECT * FROM alquileres WHERE date(inicio) = ?', [fecha])
+    const total = rows.length
+    if (maybeExport(res, rows, `alquileres_${fecha}`, req.query.format)) return
+    res.json({ total, alquileres: rows })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/reportes/metodos-pago', async (req, res) => {
+  try {
+    const desde = req.query.desde || new Date().toISOString().slice(0, 10)
+    const hasta = req.query.hasta || desde
+    const rows = await allAsync(
+      `SELECT metodo_pago, COUNT(*) as cantidad, SUM(costo) as total
+       FROM alquileres
+       WHERE estado = 'cerrado' AND date(fin) BETWEEN ? AND ?
+       GROUP BY metodo_pago`,
+      [desde, hasta]
+    )
+    if (maybeExport(res, rows, 'metodos_pago', req.query.format)) return
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/reportes/ingresos', async (req, res) => {
+  try {
+    const { periodo = 'diario' } = req.query
+    let fmt = '%Y-%m-%d'
+    if (periodo === 'semanal') fmt = '%Y-%W'
+    else if (periodo === 'mensual') fmt = '%Y-%m'
+    const rows = await allAsync(
+      `SELECT strftime('${fmt}', fin) as periodo, SUM(costo) as total
+       FROM alquileres
+       WHERE estado='cerrado'
+       GROUP BY strftime('${fmt}', fin)
+       ORDER BY periodo ASC`
+    )
+    if (maybeExport(res, rows, `ingresos_${periodo}`, req.query.format)) return
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.get('/reportes/ocupacion', async (req, res) => {
+  try {
+    const desde = req.query.desde || new Date().toISOString().slice(0, 10)
+    const hasta = req.query.hasta || desde
+    const totalMin = (new Date(hasta + 'T23:59:59') - new Date(desde + 'T00:00:00')) / 60000
+    const rows = await allAsync(
+      `SELECT c.id as carro_id, c.nombre,
+              SUM((julianday(COALESCE(a.fin, CURRENT_TIMESTAMP)) - julianday(a.inicio)) * 24 * 60) as minutos_uso
+         FROM carros c
+         LEFT JOIN alquileres a
+           ON a.carro_id = c.id AND a.estado='cerrado' AND date(a.inicio) BETWEEN ? AND ?
+        GROUP BY c.id, c.nombre
+        ORDER BY c.id`,
+      [desde, hasta]
+    )
+    const result = rows.map(r => ({
+      carro_id: r.carro_id,
+      nombre: r.nombre,
+      minutos_uso: Math.round(r.minutos_uso || 0),
+      minutos_disponibles: Math.max(0, Math.round(totalMin - (r.minutos_uso || 0)))
+    }))
+    if (maybeExport(res, result, 'ocupacion', req.query.format)) return
+    res.json(result)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// Cierre de turno
+app.post('/cierres-turno', async (req, res) => {
+  try {
+    const { operador_id, fecha } = req.body || {}
+    if (!operador_id) return res.status(400).json({ error: 'operador_id requerido' })
+    const f = fecha || new Date().toISOString().slice(0, 10)
+    const tot = await getAsync(
+      `SELECT COUNT(*) as cantidad, COALESCE(SUM(costo),0) as total
+       FROM alquileres
+       WHERE operador_id = ? AND estado='cerrado' AND date(fin) = ?`,
+      [operador_id, f]
+    )
+    const existing = await getAsync('SELECT id FROM cierres_turno WHERE operador_id = ? AND fecha = ?', [operador_id, f])
+    if (existing) {
+      await runAsync('UPDATE cierres_turno SET total_alquileres = ?, total_monto = ? WHERE id = ?', [tot.cantidad, tot.total, existing.id])
+      const row = await getAsync('SELECT * FROM cierres_turno WHERE id = ?', [existing.id])
+      return res.json(row)
+    }
+    const r = await runAsync(
+      'INSERT INTO cierres_turno (operador_id, fecha, total_alquileres, total_monto) VALUES (?,?,?,?)',
+      [operador_id, f, tot.cantidad, tot.total]
+    )
+    const row = await getAsync('SELECT * FROM cierres_turno WHERE id = ?', [r.lastID])
+    res.status(201).json(row)
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
