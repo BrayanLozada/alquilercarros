@@ -42,3 +42,7 @@ export const updateCar = (id, data) => apiFetch(`/carros/${id}`, { method: 'PATC
 // Alquileres
 export const startRental = (data) => apiFetch('/alquileres', { method: 'POST', body: JSON.stringify(data) });
 export const endRental = (id, data) => apiFetch(`/alquileres/${id}/finalizar`, { method: 'POST', body: JSON.stringify(data) });
+export const getRentalsDay = (fecha) => {
+  const query = fecha ? `?fecha=${fecha}` : '';
+  return apiFetch(`/reportes/alquileres-dia${query}`);
+};
