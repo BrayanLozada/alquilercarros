@@ -18,6 +18,7 @@ export const login = (username, password) =>
 export const getCars = () => apiFetch('/carros');
 export const getTramos = () => apiFetch('/tramos');
 export const getTarifaActiva = () => apiFetch('/tarifa/activa');
+export const setTarifa = (data) => apiFetch('/tarifa', { method: 'POST', body: JSON.stringify(data) });
 export const getUsuarios = () => apiFetch('/usuarios');
 export const getRoles = () => apiFetch('/roles');
 export const createUser = (data) => apiFetch('/usuarios', { method: 'POST', body: JSON.stringify(data) });
