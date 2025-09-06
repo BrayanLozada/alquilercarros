@@ -18,6 +18,7 @@ export const login = (username, password) =>
 export const getCars = () => apiFetch('/carros');
 export const getTramos = () => apiFetch('/tramos');
 export const getTarifaActiva = () => apiFetch('/tarifa/activa');
+export const setTarifa = (data) => apiFetch('/tarifa', { method: 'POST', body: JSON.stringify(data) });
 export const getUsuarios = () => apiFetch('/usuarios');
 export const getRoles = () => apiFetch('/roles');
 export const createUser = (data) => apiFetch('/usuarios', { method: 'POST', body: JSON.stringify(data) });
@@ -41,3 +42,7 @@ export const updateCar = (id, data) => apiFetch(`/carros/${id}`, { method: 'PATC
 // Alquileres
 export const startRental = (data) => apiFetch('/alquileres', { method: 'POST', body: JSON.stringify(data) });
 export const endRental = (id, data) => apiFetch(`/alquileres/${id}/finalizar`, { method: 'POST', body: JSON.stringify(data) });
+export const getRentalsDay = (fecha) => {
+  const query = fecha ? `?fecha=${fecha}` : '';
+  return apiFetch(`/reportes/alquileres-dia${query}`);
+};

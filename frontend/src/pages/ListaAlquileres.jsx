@@ -1,16 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, FileDown } from "lucide-react";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
-import { tarifaGlobal, formatoMoneda } from "../lib/data";
+import { formatoMoneda } from "../lib/data";
+import { getRentalsDay, getCars, getTramos } from "../lib/api";
 
 function ListaAlquileres(){
   const [q, setQ] = useState("");
-  const rows = [
-    { id:1, carro: "Buggy Rojo", tramo: "15 min", inicio: "10:05", fin:"10:20", metodo:"efectivo", costo: tarifaGlobal },
-    { id:2, carro: "Monster Verde", tramo: "30 min", inicio: "10:10", fin:"10:40", metodo:"transferencia", costo: tarifaGlobal },
-  ];
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => {
+    Promise.all([getRentalsDay(), getCars(), getTramos()]).then(([data, cs, ts]) => {
+      const carMap = Object.fromEntries(cs.map(c => [c.id, c.nombre]));
+      const tramoMap = Object.fromEntries(ts.map(t => [t.id, t.minutos]));
+      const formatted = (data.alquileres || []).map(a => ({
+        id: a.id,
+        carro: carMap[a.carro_id] || `#${a.carro_id}`,
+        tramo: `${tramoMap[a.tramo_id] || 0} min`,
+        inicio: new Date(a.inicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        fin: a.fin ? new Date(a.fin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        metodo: a.metodo_pago,
+        costo: a.costo
+      }));
+      setRows(formatted);
+    });
+  }, []);
+
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
