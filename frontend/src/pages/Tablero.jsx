@@ -107,16 +107,21 @@ function Tablero({ user }){
 
   const activos = useMemo(()=>alquileres.filter(a=>a.estado==='activo'), [alquileres]);
 
-  const startAlquiler = async (carro, tramoId, inicioManual) => {
+  const startAlquiler = async (carro, tramoId) => {
+    const tramo = tramos.find(t=>t.id===Number(tramoId));
+    const inicio = new Date();
+    const fin = new Date(inicio.getTime() + tramo.minutos * 60000);
+    const tempId = `tmp-${inicio.getTime()}`;
+    const nuevo = { id: tempId, carroId: carro.id, tramoId: tramo.id, inicio, fin, costo: tarifa, estado: 'activo', alertado: false };
+    setAlquileres(prev => [...prev, nuevo]);
+    setCars(prev => prev.map(c => c.id === carro.id ? { ...c, estado: 'en_uso' } : c));
+
     try {
-      const res = await startRental({ carro_id: carro.id, tramo_id: tramoId, operador_id: user.id, inicio: inicioManual });
-      const tramo = tramos.find(t=>t.id===Number(tramoId));
-      const inicio = new Date(res.inicio);
-      const fin = new Date(inicio.getTime() + tramo.minutos*60000);
-      const nuevo = { id: res.id, carroId: carro.id, tramoId: tramo.id, inicio, fin, costo: res.costo, estado:'activo', alertado:false };
-      setAlquileres(prev=>[...prev, nuevo]);
-      setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:'en_uso'}:c));
+      const res = await startRental({ carro_id: carro.id, tramo_id: tramoId, operador_id: user.id, inicio: getLocalIso() });
+      setAlquileres(prev => prev.map(a => a.id === tempId ? { ...a, id: res.id, costo: res.costo } : a));
     } catch (e) {
+      setAlquileres(prev => prev.filter(a => a.id !== tempId));
+      setCars(prev => prev.map(c => c.id === carro.id ? { ...c, estado: 'disponible' } : c));
       alert(e.message);
     }
   };
@@ -165,6 +170,7 @@ function Tablero({ user }){
 
               <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(tramos[0]?.id ?? null); setStartInicio(getLocalIso()); getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0)); setModalStart({open:true, carro}); }}><Play size={16}/> Iniciar alquiler</Button>
 
+
             )}
             {activo && (
               <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})}><Square size={16}/> Finalizar</Button>
@@ -206,7 +212,9 @@ function Tablero({ user }){
       <Modal open={modalStart.open} onClose={()=>setModalStart({open:false, carro:null})} title={`Iniciar alquiler • ${modalStart.carro?.nombre ?? ""}`} footer={
         <>
           <Button onClick={()=>setModalStart({open:false, carro:null})}>Cancelar</Button>
-          <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ const now = getLocalIso(); setStartInicio(now); startAlquiler(modalStart.carro, startTramo, now); setModalStart({open:false, carro:null}); }}>Iniciar</Button>
+
+          <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo); setModalStart({open:false, carro:null}); }}>Iniciar</Button>
+
         </>
       }>
         <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio} tramos={tramos} tarifa={tarifa}/>
