@@ -299,6 +299,19 @@ app.post('/alquileres/:id/finalizar', async (req, res) => {
   }
 })
 
+app.get('/alquileres/activos', async (_req, res) => {
+  try {
+    const rows = await allAsync(
+      `SELECT a.id, a.carro_id, a.tramo_id, a.inicio, a.costo, a.estado, t.minutos
+       FROM alquileres a JOIN tramos t ON t.id = a.tramo_id
+       WHERE a.estado = "activo"`
+    )
+    res.json(rows)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // Rutas: Reportes
 app.get('/reportes/alquileres-dia', async (req, res) => {
   try {
