@@ -1,17 +1,21 @@
 import { useEffect, useState } from "react";
-import { Download, FileDown } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Select from "../components/ui/Select";
 import { formatoMoneda } from "../lib/data";
 import { getRentalsDay, getCars, getTramos } from "../lib/api";
+import { exportRentalsExcel } from "../lib/exportExcel";
+import { showError } from "../lib/alerts";
 
 function ListaAlquileres(){
   const [q, setQ] = useState("");
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
+  const [exportAll, setExportAll] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([getRentalsDay(), getCars(), getTramos()]).then(([data, cs, ts]) => {
@@ -52,6 +56,22 @@ function ListaAlquileres(){
   const start = (page - 1) * perPage;
   const paginated = filtered.slice(start, start + perPage);
 
+  const handleExport = async () => {
+    const data = exportAll ? filtered : paginated;
+    if (!data.length) {
+      showError('No hay datos para exportar');
+      return;
+    }
+    try {
+      setExporting(true);
+      await exportRentalsExcel(data);
+    } catch (e) {
+      showError('No se pudo exportar, intenta de nuevo');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Card className="p-4">
       <h3 className="font-semibold mb-3">Alquileres del día</h3>
@@ -64,8 +84,14 @@ function ListaAlquileres(){
         </div>
         <div className="flex items-center gap-2">
           <Input placeholder="Buscar..." value={q} onChange={e=>setQ(e.target.value)} className="w-56"/>
-          <Button className="bg-slate-100 flex items-center gap-2"><Download size={16}/> Exportar CSV</Button>
-          <Button className="bg-slate-100 flex items-center gap-2"><FileDown size={16}/> Exportar Excel</Button>
+          <label className="flex items-center gap-1 text-sm">
+            <input type="checkbox" checked={exportAll} onChange={e=>setExportAll(e.target.checked)} />
+            Todos los filtrados
+          </label>
+          <Button onClick={handleExport} disabled={exporting} className="bg-slate-100 flex items-center gap-2">
+            {exporting ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>}
+            Exportar Excel
+          </Button>
         </div>
       </div>
       <div className="overflow-auto">
