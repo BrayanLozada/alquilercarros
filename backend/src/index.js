@@ -257,7 +257,7 @@ app.patch('/carros/:id', async (req, res) => {
 // Rutas: Alquileres
 app.post('/alquileres', async (req, res) => {
   try {
-    const { carro_id, tramo_id, operador_id, inicio: inicioManual } = req.body || {}
+  const { carro_id, tramo_id, operador_id, inicio: inicioManual, metodo_pago = 'efectivo' } = req.body || {}
     if (!carro_id || !tramo_id || !operador_id) {
       return res.status(400).json({ error: 'datos inválidos' })
     }
@@ -270,7 +270,7 @@ app.post('/alquileres', async (req, res) => {
     const tarifa = await getAsync('SELECT monto FROM tarifas WHERE activa = 1 ORDER BY date(fecha_desde) DESC LIMIT 1')
     const costo = tarifa?.monto ?? 0
     const inicio = inicioManual ? new Date(inicioManual).toISOString() : new Date().toISOString()
-    const r = await runAsync('INSERT INTO alquileres (carro_id, tramo_id, operador_id, inicio, costo, estado) VALUES (?,?,?,?,?,"activo")', [carro_id, tramo_id, operador_id, inicio, costo])
+  const r = await runAsync('INSERT INTO alquileres (carro_id, tramo_id, operador_id, inicio, costo, metodo_pago, estado) VALUES (?,?,?,?,?,?,"activo")', [carro_id, tramo_id, operador_id, inicio, costo, metodo_pago])
     await runAsync('UPDATE carros SET estado = ? WHERE id = ?', ['en_uso', carro_id])
     const row = await getAsync('SELECT * FROM alquileres WHERE id = ?', [r.lastID])
     res.status(201).json(row)

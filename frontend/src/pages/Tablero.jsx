@@ -17,7 +17,7 @@ function Countdown({ seconds }){
   return <div className={`font-mono text-lg ${seconds===0?"text-rose-600 font-bold animate-pulse":""}`}>{m}:{s}</div>;
 }
 
-function StartForm({ carro, tramo, setTramo, inicio, setInicio, tramos, tarifa }){
+function StartForm({ carro, tramo, setTramo, inicio, setInicio, tramos, tarifa, metodo, setMetodo }){
   const minutos = tramos.find(t=>t.id===Number(tramo))?.minutos ?? 0;
   return (
     <div className="space-y-4">
@@ -41,6 +41,13 @@ function StartForm({ carro, tramo, setTramo, inicio, setInicio, tramos, tarifa }
         <div>
           <Label>Costo</Label>
           <Input value={formatoMoneda(tarifa)} disabled/>
+        </div>
+        <div>
+          <Label>Método de pago</Label>
+          <Select value={metodo} onChange={e=>setMetodo(e.target.value)}>
+            <option value="efectivo">Efectivo</option>
+            <option value="transferencia">Transferencia (Nequi)</option>
+          </Select>
         </div>
       </div>
       <div className="text-sm text-slate-500">Duración seleccionada: {minutos} min</div>
@@ -73,26 +80,30 @@ function Tablero({ user }){
   const [tramos, setTramos] = useState([]);
   const [tarifa, setTarifa] = useState(0);
   const [alquileres, setAlquileres] = useState([]);
-  const STORAGE_KEY = "alquileres-activos";
+  const STORAGE_KEY = "alquileres-temporales";
   const [modalStart, setModalStart] = useState({ open:false, carro:null });
   const [modalEnd, setModalEnd] = useState({ open:false, alquiler:null });
   const [modalMant, setModalMant] = useState({ open:false, carro:null, motivo:"" });
-  const [endMetodo, setEndMetodo] = useState("efectivo");
   const [startTramo, setStartTramo] = useState(null);
+  const [endMetodo, setEndMetodo] = useState("efectivo");
   const getLocalIso = () => new Date(Date.now() - (new Date().getTimezoneOffset()*60000)).toISOString().slice(0,16);
   const [startInicio, setStartInicio] = useState(getLocalIso());
   const [, force] = useState(0);
   const audioRef = useRef(null);
   const [loadingStart, setLoadingStart] = useState(false);
   const [loadingEnd, setLoadingEnd] = useState(false);
+  // Referencia para evitar doble sincronización
+  const isSyncingRef = useRef(false);
 
+  // Intervalo para actualizar el contador y alertas
+  // Intervalo para actualizar el contador y alertas y cambiar estado a 'alquilerterminado'
   useEffect(()=>{
     const t = setInterval(()=>{
       force(x=>x+1);
       setAlquileres(prev=>prev.map(a=>{
-        if(a.estado==='activo' && !a.alertado && tiempoRestante(a)===0){
-          if(audioRef.current){ audioRef.current.play().catch(()=>{}); }
-          return { ...a, alertado:true };
+        if((a.estado==='activo'||a.estado==='en_uso'||a.estado==='en uso') && tiempoRestante(a)===0){
+          if(audioRef.current && !a.alertado){ audioRef.current.play().catch(()=>{}); }
+          return { ...a, alertado:true, estado:'alquilerterminado' };
         }
         return a;
       }));
@@ -100,72 +111,85 @@ function Tablero({ user }){
     return ()=>clearInterval(t);
   },[]);
 
-  useEffect(()=>{
+  // Sincronización y rehidratación robusta
+  // Función para sincronizar alquileres activos y contadores
+  const syncAlquileres = () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+    let temporales = [];
     const saved = localStorage.getItem(STORAGE_KEY);
     if(saved){
       try {
-        const parsed = JSON.parse(saved).map(a=>({
-          ...a,
-          inicio:new Date(a.inicio),
-          fin:new Date(a.fin)
-        }));
-        setAlquileres(parsed);
+        temporales = JSON.parse(saved).map(a=> (
+          { ...a, inicio:new Date(a.inicio), fin:new Date(a.fin) }
+        ));
       } catch(_) {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  },[]);
+    Promise.all([
+      getCars().then(cs => {
+        const mapped = cs.map(c => c.estado === 'en uso' ? { ...c, estado: 'en_uso' } : c);
+        setCars(mapped);
+      }),
+      getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); }),
+      getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0)),
+      getActiveRentals().then(rs=>{
+        const server = rs.map(a=> (
+          { id:a.id, carroId:a.carro_id, tramoId:a.tramo_id, inicio:new Date(a.inicio), fin:new Date(new Date(a.inicio).getTime()+a.minutos*60000), costo:a.costo, estado:a.estado, alertado:false }
+        ));
+        const activosIds = new Set(server.map(a=>a.carroId));
+        const soloTemporales = temporales.filter(a=>!activosIds.has(a.carroId));
+        setAlquileres([...server, ...soloTemporales]);
+      }).catch(showError)
+    ]).finally(()=>{ isSyncingRef.current = false; });
+  };
 
-  useEffect(()=>{
-    getCars().then(cs => {
-      const mapped = cs.map(c => c.estado === 'en uso' ? { ...c, estado: 'en_uso' } : c);
-      setCars(mapped);
-    });
-    getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); });
-    getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
-    getActiveRentals().then(rs=>{
-      const server = rs.map(a=>({
-        id:a.id,
-        carroId:a.carro_id,
-        tramoId:a.tramo_id,
-        inicio:new Date(a.inicio),
-        fin:new Date(new Date(a.inicio).getTime()+a.minutos*60000),
-        costo:a.costo,
-        estado:a.estado,
-        alertado:false
-      }));
-      setAlquileres(prev=>{
-        const temp = prev.filter(a=>a.id?.toString().startsWith('tmp-'));
-        return [...server, ...temp];
-      });
-    }).catch(showError);
-  },[]);
+  // Ejecutar sincronización al montar y al recuperar el foco de la pestaña
+  useEffect(() => {
+    syncAlquileres();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncAlquileres();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
+  // Guardar solo temporales en localStorage
   useEffect(()=>{
-    const toSave = alquileres
-      .filter(a=>a.estado==='activo')
-      .map(a=>({
-        ...a,
-        inicio:a.inicio.toISOString(),
-        fin:a.fin.toISOString()
-      }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    const temporales = alquileres
+      .filter(a=>a.id?.toString().startsWith('tmp-') && a.estado==='activo')
+      .map(a=>(
+        { ...a, inicio:a.inicio.toISOString(), fin:a.fin.toISOString() }
+      ));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(temporales));
   },[alquileres]);
 
-  const activos = useMemo(()=>alquileres.filter(a=>a.estado==='activo'), [alquileres]);
+  const activos = useMemo(
+    () => alquileres.filter(a => ['activo', 'en_uso', 'en uso'].includes(String(a.estado).toLowerCase())),
+    [alquileres]
+  );
+  const terminados = useMemo(
+    () => alquileres.filter(a => String(a.estado).toLowerCase() === 'alquilerterminado'),
+    [alquileres]
+  );
 
-  const startAlquiler = async (carro, tramoId) => {
+  const startAlquiler = async (carro, tramoId, metodo) => {
     const tramo = tramos.find(t=>t.id===Number(tramoId));
     const inicio = new Date();
     const fin = new Date(inicio.getTime() + tramo.minutos * 60000);
     const tempId = `tmp-${inicio.getTime()}`;
-    const nuevo = { id: tempId, carroId: carro.id, tramoId: tramo.id, inicio, fin, costo: tarifa, estado: 'activo', alertado: false };
+    const nuevo = { id: tempId, carroId: carro.id, tramoId: tramo.id, inicio, fin, costo: tarifa, estado: 'activo', alertado: false, metodo };
     setAlquileres(prev => [...prev, nuevo]);
     setCars(prev => prev.map(c => c.id === carro.id ? { ...c, estado: 'en_uso' } : c));
     setLoadingStart(true);
 
     try {
-      const res = await startRental({ carro_id: carro.id, tramo_id: tramoId, operador_id: user.id, inicio: getLocalIso() });
+      const res = await startRental({ carro_id: carro.id, tramo_id: tramoId, operador_id: user.id, inicio: getLocalIso(), metodo_pago: metodo });
       setAlquileres(prev => prev.map(a => a.id === tempId ? { ...a, id: res.id, costo: res.costo } : a));
     } catch (e) {
       setAlquileres(prev => prev.filter(a => a.id !== tempId));
@@ -192,8 +216,9 @@ function Tablero({ user }){
   const tiempoRestante = (alq)=> Math.max(0, Math.floor((new Date(alq.fin)-new Date())/1000));
 
   const cardFor = (carro)=>{
-    const activo = activos.find(a=>a.carroId===carro.id);
-    const estado = activo ? 'en_uso' : carro.estado;
+    const activo = activos.find(a=>String(a.carroId)===String(carro.id));
+    const terminado = terminados.find(a=>String(a.carroId)===String(carro.id));
+    const estado = activo ? 'en_uso' : terminado ? 'alquilerterminado' : carro.estado;
     return (
       <Card key={carro.id} className="p-4">
         <div className="flex items-center justify-between">
@@ -207,6 +232,7 @@ function Tablero({ user }){
           <div className="flex items-center gap-2">
             {estado === 'disponible' && <Pill tone="emerald">Disponible</Pill>}
             {estado === 'en_uso' && <Pill tone="red">En uso</Pill>}
+            {estado === 'alquilerterminado' && <Pill tone="amber">Alquiler terminado</Pill>}
             {estado === 'mantenimiento' && <Pill tone="amber">Mantenimiento</Pill>}
           </div>
         </div>
@@ -220,18 +246,21 @@ function Tablero({ user }){
             <div />
           )}
           <div className="flex flex-wrap gap-2 justify-end">
-            {estado==='disponible' && !activo && (
-              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(tramos[0]?.id ?? null); setStartInicio(getLocalIso()); getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0)); setModalStart({open:true, carro}); }} disabled={loadingStart}><Play size={16}/> Iniciar alquiler</Button>
+            {estado==='disponible' && !activo && !terminado && (
+              <Button className="bg-indigo-600 text-white flex items-center gap-2 text-sm" onClick={()=>{ setStartTramo(tramos[0]?.id ?? null); setStartInicio(getLocalIso()); setEndMetodo('efectivo'); getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0)); setModalStart({open:true, carro}); }} disabled={loadingStart}><Play size={16}/> Iniciar alquiler</Button>
             )}
             {activo && (
-              <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>setModalEnd({open:true, alquiler:activo})} disabled={loadingEnd}><Square size={16}/> Finalizar</Button>
+              <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" disabled><Square size={16}/> En curso</Button>
+            )}
+            {terminado && (
+              <Button className="bg-rose-600 text-white flex items-center gap-2 text-sm" onClick={()=>finalizar(terminado, terminado.metodo)} disabled={loadingEnd}><Square size={16}/> Terminar alquiler</Button>
             )}
             {user?.rol !== 'operador' && (
               <Button className="bg-slate-100 flex items-center gap-2 text-sm" onClick={()=>{
                 if(estado==='mantenimiento'){
                   updateCar(carro.id,{estado:'disponible'}).then(()=>setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:'disponible'}:c)));
                 } else {
-                  setModalMant({open:true, carro, motivo:""});
+                  updateCar(carro.id,{estado:'mantenimiento'}).then(()=>setCars(prev=>prev.map(c=>c.id===carro.id?{...c, estado:'mantenimiento'}:c)));
                 }
               }}><Wrench size={16}/> Mantenimiento</Button>
             )}
@@ -263,39 +292,15 @@ function Tablero({ user }){
       <Modal open={modalStart.open} onClose={()=>setModalStart({open:false, carro:null})} title={`Iniciar alquiler • ${modalStart.carro?.nombre ?? ""}`} footer={
         <>
           <Button onClick={()=>setModalStart({open:false, carro:null})}>Cancelar</Button>
-
-          <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo); setModalStart({open:false, carro:null}); }} disabled={loadingStart}>Iniciar</Button>
-
+          <Button className="bg-indigo-600 text-white" id="confirmStart" onClick={()=>{ startAlquiler(modalStart.carro, startTramo, endMetodo); setModalStart({open:false, carro:null}); }} disabled={loadingStart}>Iniciar</Button>
         </>
       }>
-        <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio} tramos={tramos} tarifa={tarifa}/>
+        <StartForm carro={modalStart.carro} tramo={startTramo} setTramo={setStartTramo} inicio={startInicio} setInicio={setStartInicio} tramos={tramos} tarifa={tarifa} metodo={endMetodo} setMetodo={setEndMetodo}/>
       </Modal>
 
-      <Modal open={modalEnd.open} onClose={()=>setModalEnd({open:false, alquiler:null})} title={`Finalizar alquiler`} footer={
-        <>
-          <Button onClick={()=>setModalEnd({open:false, alquiler:null})}>Cancelar</Button>
-          <Button className="bg-rose-600 text-white" id="confirmEnd" onClick={()=>{ finalizar(modalEnd.alquiler, endMetodo); setModalEnd({open:false, alquiler:null}); }} disabled={loadingEnd}>Finalizar</Button>
-        </>
-      }>
-        <EndForm metodo={endMetodo} setMetodo={setEndMetodo} tarifa={modalEnd.alquiler?.costo ?? tarifa}/>
-      </Modal>
+  {/* Modal de finalizar alquiler eliminado. El método de pago se toma solo al iniciar el alquiler. */}
 
-      <Modal open={modalMant.open} onClose={()=>setModalMant({open:false, carro:null, motivo:""})} title={`Mantenimiento • ${modalMant.carro?.nombre ?? ''}`} footer={
-        <>
-          <Button onClick={()=>setModalMant({open:false, carro:null, motivo:""})}>Cancelar</Button>
-          <Button className="bg-slate-800 text-white" onClick={()=>{
-            updateCar(modalMant.carro.id,{estado:'mantenimiento', motivo_mant: modalMant.motivo}).then(()=>{
-              setCars(prev=>prev.map(c=>c.id===modalMant.carro.id?{...c, estado:'mantenimiento', motivo_mant: modalMant.motivo}:c));
-              setModalMant({open:false, carro:null, motivo:""});
-            });
-          }}>Guardar</Button>
-        </>
-      }>
-        <div className="space-y-4">
-          <Label>Motivo de mantenimiento</Label>
-          <Input value={modalMant.motivo} onChange={e=>setModalMant(m=>({...m, motivo:e.target.value}))} />
-        </div>
-      </Modal>
+  {/* Modal de motivo de mantenimiento eliminado para admin. */}
 
       <audio ref={audioRef} src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA/////w==" />
     </>

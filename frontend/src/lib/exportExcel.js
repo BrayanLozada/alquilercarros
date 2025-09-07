@@ -1,32 +1,20 @@
 import ExcelJS from 'exceljs';
 
-function parseTime(value) {
-  if (!value) return null;
-  if (value instanceof Date) return value;
-  const original = String(value).trim();
-  const normalized = original
-    .toLowerCase()
-    .replace(/a\.?\s?m\.?/i, 'AM')
-    .replace(/p\.?\s?m\.?/i, 'PM')
-    .replace(/\s+/g, '');
-  const ampmMatch = normalized.match(/(AM|PM)$/i);
-  let timePart = normalized;
-  let ampm = null;
-  if (ampmMatch) {
-    ampm = ampmMatch[1].toUpperCase();
-    timePart = normalized.slice(0, -ampmMatch[0].length);
-  }
-  const [hStr, mStr] = timePart.split(':');
-  const h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
-  if (Number.isFinite(h) && Number.isFinite(m)) {
-    let hours = h % 12;
-    if (ampm === 'PM') hours += 12;
-    if (!ampm && h === 24) hours = 0;
-    return new Date(1970, 0, 1, hours, m);
-  }
-  console.warn('No se pudo parsear hora:', value);
-  return original;
+function toColombiaDateString(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+    if (typeof value === 'string' && value.trim() === '') return '';
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
 }
 
 function parseCosto(value) {
@@ -110,14 +98,25 @@ export async function exportRentalsExcel(rows = []) {
     return Number.isFinite(n) ? n : null;
   };
 
-  const tableRows = rows.map(r => [
-    r.carro,
-    parseTramo(r.tramo),
-    parseTime(r.inicio),
-    parseTime(r.fin),
-    r.metodo,
-    parseCosto(r.costo)
-  ]);
+    // Log para depuración de fechas
+    console.log('Exportando filas, ejemplo de datos:');
+    rows.slice(0, 5).forEach((r, i) => {
+      console.log(`Fila ${i + 1}:`, {
+        inicio: r.inicio,
+        fin: r.fin,
+        typeofInicio: typeof r.inicio,
+        typeofFin: typeof r.fin
+      });
+    });
+
+    const tableRows = rows.map(r => [
+      r.carro,
+      parseTramo(r.tramo),
+      r.inicio || '',
+      r.fin || '',
+      r.metodo,
+      parseCosto(r.costo)
+    ]);
 
   worksheet.addTable({
     name: 'Alquileres',
@@ -133,8 +132,7 @@ export async function exportRentalsExcel(rows = []) {
   [2, 3, 4, 6].forEach(i => worksheet.getColumn(i).alignment = { horizontal: 'right' });
 
   worksheet.getColumn(2).numFmt = '0" min"';
-  worksheet.getColumn(3).numFmt = 'hh:mm';
-  worksheet.getColumn(4).numFmt = 'hh:mm';
+  // No aplicar formato de fecha/hora, exportar como texto
   worksheet.getColumn(6).numFmt = '"$"#,##0';
 
   const totalRows = tableRows.length + 3;
