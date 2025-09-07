@@ -8,7 +8,7 @@ import Select from "../components/ui/Select";
 import Label from "../components/ui/Label";
 import Modal from "../components/ui/Modal";
 import { formatoMoneda } from "../lib/data";
-import { getCars, getTramos, getTarifaActiva, startRental, endRental, updateCar } from "../lib/api";
+import { getCars, getTramos, getTarifaActiva, startRental, endRental, updateCar, getActiveRentals } from "../lib/api";
 
 function Countdown({ seconds }){
   const m = Math.floor(seconds/60).toString().padStart(2,'0');
@@ -103,6 +103,18 @@ function Tablero({ user }){
     });
     getTramos().then(d=>{ setTramos(d); if(d.length>0) setStartTramo(d[0].id); });
     getTarifaActiva().then(t=>setTarifa(t?.monto ?? 0));
+    getActiveRentals().then(rs=>{
+      setAlquileres(rs.map(a=>({
+        id:a.id,
+        carroId:a.carro_id,
+        tramoId:a.tramo_id,
+        inicio:new Date(a.inicio),
+        fin:new Date(new Date(a.inicio).getTime()+a.minutos*60000),
+        costo:a.costo,
+        estado:a.estado,
+        alertado:false
+      })));
+    });
   },[]);
 
   const activos = useMemo(()=>alquileres.filter(a=>a.estado==='activo'), [alquileres]);
