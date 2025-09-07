@@ -3,36 +3,67 @@ import { Download, FileDown } from "lucide-react";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
+import Select from "../components/ui/Select";
 import { formatoMoneda } from "../lib/data";
 import { getRentalsDay, getCars, getTramos } from "../lib/api";
 
 function ListaAlquileres(){
   const [q, setQ] = useState("");
   const [rows, setRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(5);
 
   useEffect(() => {
     Promise.all([getRentalsDay(), getCars(), getTramos()]).then(([data, cs, ts]) => {
       const carMap = Object.fromEntries(cs.map(c => [c.id, c.nombre]));
       const tramoMap = Object.fromEntries(ts.map(t => [t.id, t.minutos]));
-      const formatted = (data.alquileres || []).map(a => ({
-        id: a.id,
-        carro: carMap[a.carro_id] || `#${a.carro_id}`,
-        tramo: `${tramoMap[a.tramo_id] || 0} min`,
-        inicio: new Date(a.inicio).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        fin: a.fin ? new Date(a.fin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        metodo: a.metodo_pago,
-        costo: a.costo
-      }));
+      const formatted = (data.alquileres || []).map(a => {
+        const inicioDate = new Date(a.inicio);
+        return {
+          id: a.id,
+          carro: carMap[a.carro_id] || `#${a.carro_id}`,
+          tramo: `${tramoMap[a.tramo_id] || 0} min`,
+          inicio: inicioDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          inicioDate,
+          fin: a.fin ? new Date(a.fin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          metodo: a.metodo_pago,
+          costo: a.costo
+        };
+      }).sort((a,b) => b.inicioDate - a.inicioDate);
       setRows(formatted);
     });
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+  }, [q, perPage]);
+
+  const filtered = rows.filter(r => {
+    const text = `${r.carro} ${r.tramo} ${r.inicio} ${r.fin} ${r.metodo} ${r.costo}`.toLowerCase();
+    return text.includes(q.toLowerCase());
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const start = (page - 1) * perPage;
+  const paginated = filtered.slice(start, start + perPage);
+
   return (
     <Card className="p-4">
+      <h3 className="font-semibold mb-3">Alquileres del día</h3>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold">Alquileres del día</h3>
         <div className="flex items-center gap-2">
-          <Input placeholder="Buscar por carro…" value={q} onChange={e=>setQ(e.target.value)} className="w-56"/>
+          <span className="text-sm text-slate-600">Mostrar</span>
+          <Select value={perPage} onChange={e=>setPerPage(Number(e.target.value))} className="w-20">
+            {[5,10,25,50].map(n => <option key={n} value={n}>{n}</option>)}
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input placeholder="Buscar..." value={q} onChange={e=>setQ(e.target.value)} className="w-56"/>
           <Button className="bg-slate-100 flex items-center gap-2"><Download size={16}/> Exportar CSV</Button>
           <Button className="bg-slate-100 flex items-center gap-2"><FileDown size={16}/> Exportar Excel</Button>
         </div>
@@ -50,7 +81,7 @@ function ListaAlquileres(){
             </tr>
           </thead>
           <tbody>
-            {rows.filter(r=>r.carro.toLowerCase().includes(q.toLowerCase())).map(r=> (
+            {paginated.map(r=> (
               <tr key={r.id} className="border-t">
                 <td className="py-2">{r.carro}</td>
                 <td>{r.tramo}</td>
@@ -62,6 +93,21 @@ function ListaAlquileres(){
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="flex justify-end items-center gap-1 mt-3">
+        <Button className="px-3 py-1" onClick={()=>setPage(1)} disabled={page===1}>&laquo;</Button>
+        <Button className="px-3 py-1" onClick={()=>setPage(p=>Math.max(p-1,1))} disabled={page===1}>&lsaquo;</Button>
+        {Array.from({length: totalPages}, (_,i)=>(
+          <Button
+            key={i+1}
+            className={`px-3 py-1 ${page===i+1 ? 'bg-slate-200' : ''}`}
+            onClick={()=>setPage(i+1)}
+          >
+            {i+1}
+          </Button>
+        ))}
+        <Button className="px-3 py-1" onClick={()=>setPage(p=>Math.min(p+1,totalPages))} disabled={page===totalPages}>&rsaquo;</Button>
+        <Button className="px-3 py-1" onClick={()=>setPage(totalPages)} disabled={page===totalPages}>&raquo;</Button>
       </div>
     </Card>
   );
