@@ -65,6 +65,27 @@ function autoFitColumns(worksheet, { min = 10, max = 40 } = {}) {
   });
 }
 
+function getColombiaDateTime(now = new Date()) {
+  const options = { timeZone: 'America/Bogota', hour12: false };
+  const datePart = new Intl.DateTimeFormat('en-CA', {
+    ...options,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+  const timePart = new Intl.DateTimeFormat('en-GB', {
+    ...options,
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(now);
+  const display = new Intl.DateTimeFormat('es-CO', {
+    timeZone: 'America/Bogota',
+    dateStyle: 'short',
+    timeStyle: 'medium'
+  }).format(now);
+  return { datePart, timePart, display };
+}
+
 export async function exportRentalsExcel(rows = []) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Alquileres');
@@ -78,9 +99,10 @@ export async function exportRentalsExcel(rows = []) {
   title.alignment = { horizontal: 'center' };
 
   const now = new Date();
+  const { datePart, timePart, display } = getColombiaDateTime(now);
   worksheet.mergeCells(2, 1, 2, 3);
   worksheet.mergeCells(2, 4, 2, 6);
-  worksheet.getCell(2, 1).value = `Exportado: ${now.toLocaleString()}`;
+  worksheet.getCell(2, 1).value = `Exportado: ${display}`;
   worksheet.getCell(2, 4).value = `Total registros: ${rows.length}`;
 
   const parseTramo = (t) => {
@@ -133,9 +155,7 @@ export async function exportRentalsExcel(rows = []) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const date = now.toISOString().slice(0, 10);
-  const time = now.toTimeString().slice(0, 5).replace(':', '-');
-  const filename = `alquileres_del_dia_${date}_${time}.xlsx`;
+  const filename = `alquileres_del_dia_${datePart}_${timePart.replace(':', '-')}.xlsx`;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
