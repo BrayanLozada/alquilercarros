@@ -20,8 +20,13 @@ export async function exportRentalsExcel(rows = []) {
 
   const parseTime = (t) => {
     if (!t) return null;
-    const [h, m] = t.split(':').map(Number);
-    return new Date(1970, 0, 1, h, m);
+    const date = new Date(t);
+    if (!isNaN(date)) return date;
+    const [h, m] = String(t).split(':').map(Number);
+    if (Number.isFinite(h) && Number.isFinite(m)) {
+      return new Date(1970, 0, 1, h, m);
+    }
+    return null;
   };
   const parseTramo = (t) => {
     const n = parseInt(t, 10);
